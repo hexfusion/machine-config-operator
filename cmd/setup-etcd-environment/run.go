@@ -53,6 +53,33 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return errors.New("--discovery-srv cannot be empty")
 	}
 
+	etcdName := os.Getenv("ETCD_NAME")
+	if etcdName == "" {
+		return fmt.Errorf("environment variable ETCD_NAME has no value")
+	}
+
+	etcdDataDir := os.Getenv("ETCD_DATA_DIR")
+	if etcdDataDir == "" {
+		return fmt.Errorf("environment variable ETCD_DATA_DIR has no value")
+	}
+
+    if _, err := os.Stat(fmt.Sprintf("%s/member", etcdDataDir); os.IsNotExist(err) && ! runOpts.bootstrapSRV {
+		clientConfig, err := rest.InClusterConfig()
+		if err != nil {
+			panic(err.Error())
+		}
+		client, err := kubernetes.NewForConfig(clientConfig)
+		if err != nil {
+			return fmt.Errorf("error creating client: %v", err)
+		}
+
+		duration := 10 * time.Second
+		// wait forever for success and retry every duration interval
+		wait.PollInfinite(duration, func() (bool, error) {
+			result, err := client.CoreV1().ConfigMaps("openshift-etcd").Get("member-config", metav1.GetOptions{})
+		}
+    }
+
 	ips, err := ipAddrs()
 	if err != nil {
 		return err
@@ -62,7 +89,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	var ip string
 	if err := wait.PollImmediate(30*time.Second, 5*time.Minute, func() (bool, error) {
 		for _, cand := range ips {
-			found, err := reverseLookupSelf("etcd-server-ssl", "tcp", runOpts.discoverySRV, cand)
+			found, err := reverseLookup("etcd-server-ssl", "tcp", runOpts.discoverySRV, cand, runOpts.bootstrapSRV)
 			if err != nil {
 				glog.Errorf("error looking up self for candidate IP %s: %v", cand, err)
 				continue
@@ -167,29 +194,44 @@ func ipAddrs() ([]string, error) {
 	return ips, nil
 }
 
+func reverseLookup(service, proto, name, self string, bootstrapSRV bool) (string, error) {
+	if bootstrapSRV {
+		return reverseLookupSelf(service, proto, name, self)
+	}
+	return lookupTargetMatchSelf(fmt.Sprintf("etcd-bootstrap.%s", name), self)
+}
+
 // returns the target from the SRV record that resolves to self.
 func reverseLookupSelf(service, proto, name, self string) (string, error) {
 	_, srvs, err := net.LookupSRV(service, proto, name)
 	if err != nil {
 		return "", err
 	}
-	selfTarget := ""
 	for _, srv := range srvs {
 		glog.V(4).Infof("checking against %s", srv.Target)
-		addrs, err := net.LookupHost(srv.Target)
+		selfTarget, err := lookupTargetMatchSelf(srv.Target, self)
 		if err != nil {
-			return "", fmt.Errorf("could not resolve member %q", srv.Target)
+			return "", err
 		}
-
-		for _, addr := range addrs {
-			if addr == self {
-				selfTarget = strings.Trim(srv.Target, ".")
-				break
-			}
+		if selfTarget != "" {
+			return selfTarget, nil
 		}
 	}
-	if selfTarget == "" {
-		return "", fmt.Errorf("could not find self")
+	return "", fmt.Errorf("could not find self")
+}
+
+//
+func lookupTargetMatchSelf(target string, self string) (string, error) {
+	addrs, err := net.LookupHost(target)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve member %q", target)
+	}
+	selfTarget := ""
+	for _, addr := range addrs {
+		if addr == self {
+			selfTarget = strings.Trim(target, ".")
+			break
+		}
 	}
 	return selfTarget, nil
 }
