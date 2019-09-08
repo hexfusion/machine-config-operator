@@ -23,6 +23,17 @@ contents:
         volumeMounts:
         - name: discovery
           mountPath: /run/etcd/
+        - name: data-dir
+          mountPath: /var/lib/etcd/
+        - name: sa
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
+        env:
+        - name: ETCD_DATA_DIR
+          value: "/var/lib/etcd"
+        - name: ETCD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
       - name: certs
         image: "{{.Images.kubeClientAgentImageKey}}"
         command:
@@ -191,3 +202,6 @@ contents:
       - name: conf
         hostPath:
           path: /etc/etcd
+      - name: sa
+        hostPath:
+          path: /etc/kubernetes/static-pod-resources/etcd-member/secrets/kubernetes.io/sa-token
