@@ -19,6 +19,7 @@ contents:
         - "run"
         - "--discovery-srv={{.EtcdDiscoveryDomain}}"
         - "--output-file=/run/etcd/environment"
+        - "--bootstrap-srv=false"
         - "--v=4"
         volumeMounts:
         - name: discovery
