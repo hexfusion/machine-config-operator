@@ -37,7 +37,6 @@ var (
 		ifName       string
 		outputFile   string
 		bootstrapSRV bool
-		standalone   bool
 	}
 )
 
@@ -55,9 +54,9 @@ type Member struct {
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	rootCmd.PersistentFlags().StringVar(&runOpts.discoverySRV, "discovery-srv", "", "DNS domain used to bootstrap initial etcd cluster.")
+	rootCmd.PersistentFlags().StringVar(&runOpts.discoverySRV, "discovery-srv", "", "DNS domain used to populate envs from SRV query.")
 	rootCmd.PersistentFlags().StringVar(&runOpts.outputFile, "output-file", "", "file where the envs are written. If empty, prints to Stdout.")
-	rootCmd.PersistentFlags().BoolVar(&runOpts.bootstrapSRV, "bootstrap-srv", true, "use SRV discovery for bootstraping etcd cluster.")
+	rootCmd.PersistentFlags().BoolVar(&runOpts.bootstrapSRV, "srv-bootstrap", true, "use SRV discovery for bootstraping etcd cluster.")
 }
 
 func runRunCmd(cmd *cobra.Command, args []string) error {
@@ -81,9 +80,8 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("environment variable ETCD_DATA_DIR has no value")
 	}
 
-	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" || os.Getenv("KUBERNETES_SERVICE_PORT") == "" {
-		glog.V(4).Infof("KUBERNETES_SERVICE_HOST or KUBERNETES_SERVICE_PORT contain no value enabling standalone mode")
-		runOpts.standalone = true
+	if !inCluster() {
+		glog.V(4).Infof("KUBERNETES_SERVICE_HOST or KUBERNETES_SERVICE_PORT contain no value, running in standalone mode.")
 	}
 
 	ips, err := ipAddrs()
@@ -95,7 +93,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	var ip string
 	if err := wait.PollImmediate(30*time.Second, 5*time.Minute, func() (bool, error) {
 		for _, cand := range ips {
-			found, err := reverseLookup("etcd-server-ssl", "tcp", runOpts.discoverySRV, cand, runOpts.bootstrapSRV, runOpts.standalone)
+			found, err := reverseLookup("etcd-server-ssl", "tcp", runOpts.discoverySRV, cand, runOpts.bootstrapSRV)
 			if err != nil {
 				glog.Errorf("error looking up self: %v", err)
 				continue
@@ -114,7 +112,16 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	glog.Infof("dns name is %s", dns)
 
 	exportEnv := make(map[string]string)
-	if _, err := os.Stat(fmt.Sprintf("%s/member", etcdDataDir)); os.IsNotExist(err) && !runOpts.bootstrapSRV && !runOpts.standalone {
+	if _, err := os.Stat(fmt.Sprintf("%s/member", etcdDataDir)); os.IsNotExist(err) && !runOpts.bootstrapSRV && inCluster() {
+		duration := 10 * time.Second
+		wait.PollInfinite(duration, func() (bool, error) {
+			if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount/token"); os.IsNotExist(err) {
+				glog.Errorf("serviceaccount failed: %v", err)
+				return false, nil
+			}
+			return true, nil
+		})
+
 		clientConfig, err := rest.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
@@ -124,7 +131,6 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("error creating client: %v", err)
 		}
 		var e EtcdScaling
-		duration := 10 * time.Second
 		// wait forever for success and retry every duration interval
 		wait.PollInfinite(duration, func() (bool, error) {
 			result, err := client.CoreV1().ConfigMaps("openshift-etcd").Get("member-config", metav1.GetOptions{})
@@ -219,8 +225,8 @@ func ipAddrs() ([]string, error) {
 	return ips, nil
 }
 
-func reverseLookup(service, proto, name, self string, bootstrapSRV bool, standalone bool) (string, error) {
-	if bootstrapSRV || !standalone {
+func reverseLookup(service, proto, name, self string, bootstrapSRV bool) (string, error) {
+	if bootstrapSRV || inCluster() {
 		return reverseLookupSelf(service, proto, name, self)
 	}
 	return lookupTargetMatchSelf(fmt.Sprintf("etcd-bootstrap.%s", name), self)
@@ -274,4 +280,11 @@ func writeEnvironmentFile(m map[string]string, w io.Writer, export bool) error {
 		return err
 	}
 	return nil
+}
+
+func inCluster() bool {
+	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" || os.Getenv("KUBERNETES_SERVICE_PORT") == "" {
+		return false
+	}
+	return true
 }
