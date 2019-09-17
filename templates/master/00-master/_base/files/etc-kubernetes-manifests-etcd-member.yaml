@@ -28,6 +28,8 @@ contents:
           mountPath: /var/lib/etcd/
         - name: sa
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
+        - name: certs
+          mountPath: /etc/ssl/etcd/
         env:
         - name: ETCD_DATA_DIR
           value: "/var/lib/etcd"
