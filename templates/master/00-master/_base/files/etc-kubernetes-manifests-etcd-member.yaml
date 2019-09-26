@@ -51,35 +51,23 @@ contents:
           [ -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.key ] || \
             kube-client-agent \
-              request \
-                --kubeconfig=/etc/kubernetes/kubeconfig \
-                --orgname=system:etcd-servers \
+              mount \
                 --assetsdir=/etc/ssl/etcd \
-                --dnsnames={{etcdServerCertDNSNames .}} \
-                --commonname=system:etcd-server:${ETCD_DNS_NAME} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \
+                --commonname=system:etcd-server:${ETCD_DNS_NAME}
 
           [ -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.key ] || \
             kube-client-agent \
-              request \
-                --kubeconfig=/etc/kubernetes/kubeconfig \
-                --orgname=system:etcd-peers \
+              mount \
                 --assetsdir=/etc/ssl/etcd \
-                --dnsnames={{etcdPeerCertDNSNames .}} \
-                --commonname=system:etcd-peer:${ETCD_DNS_NAME} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS} \
+                --commonname=system:etcd-peer:${ETCD_DNS_NAME}
 
           [ -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.key ] || \
             kube-client-agent \
-              request \
-                --kubeconfig=/etc/kubernetes/kubeconfig \
-                --orgname=system:etcd-metrics \
+              mount \
                 --assetsdir=/etc/ssl/etcd \
-                --dnsnames={{etcdServerCertDNSNames .}} \
-                --commonname=system:etcd-metric:${ETCD_DNS_NAME} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS} \
+                --commonname=system:etcd-metric:${ETCD_DNS_NAME}
 
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
@@ -87,11 +75,22 @@ contents:
           mountPath: /run/etcd/
         - name: certs
           mountPath: /etc/ssl/etcd/
-        - name: kubeconfig
-          mountPath: /etc/kubernetes/kubeconfig
+        - name: sa
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
       containers:
       - name: etcd-member
         image: "{{.Images.etcdKey}}"
+        readinessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -ec
+              - "lsof -n -i :2380 | grep LISTEN"
+          failureThreshold: 3
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 5
         command:
         - /bin/sh
         - -c
