@@ -495,6 +495,15 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:46779e6e79e6fbe3a2aa135ebfb1ce6606383c03134939d838e322668aa1e4f8"
+  name = "github.com/openshift/cluster-etcd-operator"
+  packages = ["pkg/operator/api"]
+  pruneopts = "NUT"
+  revision = "b206e9559f5f4b77eb5732b042e3de8f75752007"
+  source = "github.com/openshift/cluster-etcd-operator"
+
+[[projects]]
+  branch = "master"
   digest = "1:7595f93ec718b635fc637139b75413aaee09e9a9363c193300397db7bacb2b3b"
   name = "github.com/openshift/library-go"
   packages = [
@@ -1228,6 +1237,7 @@
     "github.com/coreos/ignition/config/validate",
     "github.com/davecgh/go-spew/spew",
     "github.com/ghodss/yaml",
+    "github.com/go-log/log",
     "github.com/golang/glog",
     "github.com/google/renameio",
     "github.com/imdario/mergo",
@@ -1248,6 +1258,7 @@
     "github.com/openshift/client-go/operator/informers/externalversions/operator/v1alpha1",
     "github.com/openshift/client-go/operator/listers/operator/v1alpha1",
     "github.com/openshift/cluster-api/pkg/drain",
+    "github.com/openshift/cluster-etcd-operator/pkg/operator/api",
     "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers",
     "github.com/openshift/library-go/pkg/operator/v1helpers",
     "github.com/pkg/errors",
