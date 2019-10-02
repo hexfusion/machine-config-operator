@@ -7,17 +7,22 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
+
 	"github.com/golang/glog"
+	v1 "github.com/openshift/api/config/v1"
+	operatorclient "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	"github.com/openshift/machine-config-operator/pkg/version"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -43,6 +48,8 @@ var (
 	}
 )
 
+//TODO short term hack until we merge CEO upstream
+
 type EtcdScaling struct {
 	Metadata *metav1.ObjectMeta `json:"metadata,omitempty"`
 	Members  []Member           `json:"members,omitempty"`
@@ -50,10 +57,60 @@ type EtcdScaling struct {
 }
 
 type Member struct {
-	ID         uint64   `json:"ID,omitempty"`
-	Name       string   `json:"name,omitempty"`
-	PeerURLS   []string `json:"peerURLs,omitempty"`
-	ClientURLS []string `json:"clientURLs,omitempty"`
+	ID         uint64            `json:"ID,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	PeerURLS   []string          `json:"peerURLs,omitempty"`
+	ClientURLS []string          `json:"clientURLs,omitempty"`
+	Conditions []MemberCondition `json:"conditions,omitempty"`
+}
+
+type MemberCondition struct {
+	// type describes the current condition
+	Type MemberConditionType `json:"type"`
+	// status is the status of the condition (True, False, Unknown)
+	Status v1.ConditionStatus `json:"status"`
+	// timestamp for the last update to this condition
+	// +optional
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// reason is the reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// message is a human-readable explanation containing details about
+	// the transition
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+type MemberConditionType string
+
+const (
+	// Ready indicated the member is part of the cluster and available
+	MemberReady MemberConditionType = "Ready"
+	// Unknown indicated the member is part of the cluster but condition is unknown
+	MemberUnknown MemberConditionType = "Unknown"
+	// Degraded indicates the member pod is in a degraded state and should be restarted
+	MemberDegraded MemberConditionType = "Degraded"
+	// Remove indicates the member should be removed from the cluster
+	MemberRemove MemberConditionType = "Remove"
+	// MemberAdd is a member who is ready to join cluster but currently has not.
+	MemberAdd MemberConditionType = "Add"
+)
+
+func GetMemberCondition(status string) MemberConditionType {
+	switch {
+	case status == string(MemberReady):
+		return MemberReady
+	case status == string(MemberRemove):
+		return MemberRemove
+	case status == string(MemberUnknown):
+		return MemberUnknown
+	case status == string(MemberDegraded):
+		return MemberDegraded
+	case status == string(MemberAdd):
+		return MemberAdd
+	}
+
+	return ""
 }
 
 func init() {
@@ -118,6 +175,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	exportEnv := make(map[string]string)
 	if _, err := os.Stat(fmt.Sprintf("%s/member", etcdDataDir)); os.IsNotExist(err) && !runOpts.bootstrapSRV && inCluster() {
 		duration := 10 * time.Second
+		// wait for our SA asssets to sync
 		wait.PollInfinite(duration, func() (bool, error) {
 			if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount/token"); os.IsNotExist(err) {
 				glog.Errorf("serviceaccount failed: %v", err)
@@ -130,10 +188,25 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			panic(err.Error())
 		}
+		operatorClient, err := operatorclient.NewForConfig(clientConfig)
+		if err != nil {
+			return err
+		}
 		client, err := kubernetes.NewForConfig(clientConfig)
 		if err != nil {
 			return fmt.Errorf("error creating client: %v", err)
 		}
+		etcdClient := operatorClient.Etcds()
+
+		// this handles condition where we are in the proccess of or are post removal but waiting for MemberAdd status to scaleup.
+		wait.PollInfinite(duration, func() (bool, error) {
+			if isMemberAdd(etcdClient, etcdName) {
+				return true, nil
+			}
+			glog.V(4).Infof("waiting for MemberAdd status")
+			return false, nil
+		})
+
 		var e EtcdScaling
 		// wait forever for success and retry every duration interval
 		wait.PollInfinite(duration, func() (bool, error) {
@@ -292,4 +365,80 @@ func inCluster() bool {
 		return false
 	}
 	return true
+}
+
+//TODO util me
+func isMemberAdd(client operatorclient.EtcdInterface, name string) bool {
+	members, err := pendingMemberList(client)
+	if err != nil {
+		klog.Errorf("isMemberAdd: error %v", err)
+	}
+	for _, m := range members {
+		if m.Name == name && m.Conditions[0].Type == MemberAdd {
+			return true
+		}
+	}
+	return false
+}
+
+//TODO util me
+func pendingMemberList(client operatorclient.EtcdInterface) ([]Member, error) {
+	configPath := []string{"cluster", "pending"}
+	operatorSpec, err := client.Get("cluster", metav1.GetOptions{})
+	if err != nil {
+		glog.V(4).Infof("pendingMemberList: error %v", err)
+		return nil, err
+	}
+
+	config := map[string]interface{}{}
+	if err := json.NewDecoder(bytes.NewBuffer(operatorSpec.Spec.ObservedConfig.Raw)).Decode(&config); err != nil {
+		klog.V(4).Infof("decode of existing config failed with error: %v", err)
+	}
+	data, exists, err := unstructured.NestedSlice(config, configPath...)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("etcd cluster members not observed")
+	}
+
+	// populate pending  members as observed.
+	var members []Member
+	for _, member := range data {
+		memberMap, _ := member.(map[string]interface{})
+		name, exists, err := unstructured.NestedString(memberMap, "name")
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, fmt.Errorf("member name does not exist")
+		}
+		peerURLs, exists, err := unstructured.NestedString(memberMap, "peerURLs")
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, fmt.Errorf("member peerURLs do not exist")
+		}
+		status, exists, err := unstructured.NestedString(memberMap, "status")
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, fmt.Errorf("member status does not exist")
+		}
+
+		condition := GetMemberCondition(status)
+		m := Member{
+			Name:     name,
+			PeerURLS: []string{peerURLs},
+			Conditions: []MemberCondition{
+				{
+					Type: condition,
+				},
+			},
+		}
+		members = append(members, m)
+	}
+	return members, nil
 }
