@@ -7,12 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/golang/glog"
 	"github.com/openshift/machine-config-operator/pkg/version"

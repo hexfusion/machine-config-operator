@@ -38,7 +38,7 @@ contents:
             fieldRef:
               fieldPath: metadata.name
       - name: certs
-        image: "{{.Images.kubeClientAgentImageKey}}"
+        image: {{if .Images.clusterEtcdOperatorImageKey}}"{{.Images.clusterEtcdOperatorImageKey}}"{{else}}"{{.Images.kubeClientAgentImageKey}}"{{end}}
         command:
         - /bin/sh
         - -c
@@ -46,26 +46,29 @@ contents:
           #!/bin/sh
           set -euxo pipefail
 
+          {{if .Images.clusterEtcdOperatorImageKey}}
+            COMMAND="cluster-etcd-operator mount"
+          {{else}}
+            COMMAND="kube-client-agent request"
+          {{end}}
+
           source /run/etcd/environment
 
           [ -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.key ] || \
-            kube-client-agent \
-              mount \
+            $COMMAND \
                 --assetsdir=/etc/ssl/etcd \
                 --commonname=system:etcd-server:${ETCD_DNS_NAME}
 
           [ -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.key ] || \
-            kube-client-agent \
-              mount \
+            $COMMAND \
                 --assetsdir=/etc/ssl/etcd \
                 --commonname=system:etcd-peer:${ETCD_DNS_NAME}
 
           [ -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.key ] || \
-            kube-client-agent \
-              mount \
+            $COMMAND \
                 --assetsdir=/etc/ssl/etcd \
                 --commonname=system:etcd-metric:${ETCD_DNS_NAME}
 
@@ -77,6 +80,7 @@ contents:
           mountPath: /etc/ssl/etcd/
         - name: sa
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
+    {{if .Images.clusterEtcdOperatorImageKey}}
       - name: membership
         image: "{{.Images.etcdKey}}"
         command:
@@ -103,6 +107,7 @@ contents:
           mountPath: /run/etcd/
         - name: certs
           mountPath: /etc/ssl/etcd/
+    {{end}}
       containers:
       - name: etcd-member
         image: "{{.Images.etcdKey}}"

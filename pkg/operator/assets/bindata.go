@@ -47,6 +47,7 @@ import (
 	"strings"
 	"time"
 )
+
 type asset struct {
 	bytes []byte
 	info  os.FileInfo
@@ -92,8 +93,8 @@ func (fi bindataFileInfo) Sys() interface{} {
 var _manifestsBaremetalCorednsCorefileTmpl = []byte(`. {
     errors
     health
-    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{`+"`"+`{{.Cluster.MasterAmount}}`+"`"+`}} {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}
-    forward . {{`+"`"+`{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}`+"`"+`}}
+    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{` + "`" + `{{.Cluster.MasterAmount}}` + "`" + `}} {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}
+    forward . {{` + "`" + `{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}` + "`" + `}}
     cache 30
     reload
     hosts /etc/coredns/api-int.hosts {{ .ControllerConfig.EtcdDiscoveryDomain }} {
@@ -233,33 +234,33 @@ var _manifestsBaremetalKeepalivedConfTmpl = []byte(`# Configuration template for
 # For more information, see installer/data/data/bootstrap/baremetal/README.md
 # in the installer repo.
 
-vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_API {
+vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_API {
     state BACKUP
-    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
-    virtual_router_id {{`+"`"+`{{.Cluster.APIVirtualRouterID }}`+"`"+`}}
+    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
+    virtual_router_id {{` + "`" + `{{.Cluster.APIVirtualRouterID }}` + "`" + `}}
     priority 50
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_api_vip
+        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_api_vip
     }
     virtual_ipaddress {
-        {{`+"`"+`{{ .Cluster.APIVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+        {{` + "`" + `{{ .Cluster.APIVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
     }
 }
 
-vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_DNS {
+vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_DNS {
     state MASTER
-    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
-    virtual_router_id {{`+"`"+`{{.Cluster.DNSVirtualRouterID }}`+"`"+`}}
+    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
+    virtual_router_id {{` + "`" + `{{.Cluster.DNSVirtualRouterID }}` + "`" + `}}
     priority 140
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_dns_vip
+        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_dns_vip
     }
     virtual_ipaddress {
-        {{`+"`"+`{{ .Cluster.DNSVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+        {{` + "`" + `{{ .Cluster.DNSVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
     }
 }
 `)
@@ -1364,7 +1365,7 @@ func manifestsMachineconfigserverClusterrolebindingYaml() (*asset, error) {
 	return a, nil
 }
 
-var _manifestsMachineconfigserverCsrBootstrapRoleBindingYaml = []byte(`# system-bootstrap-node-bootstrapper lets serviceaccount `+"`"+`openshift-machine-config-operator/node-bootstrapper`+"`"+` tokens and nodes request CSRs.
+var _manifestsMachineconfigserverCsrBootstrapRoleBindingYaml = []byte(`# system-bootstrap-node-bootstrapper lets serviceaccount ` + "`" + `openshift-machine-config-operator/node-bootstrapper` + "`" + ` tokens and nodes request CSRs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -1398,7 +1399,7 @@ var _manifestsMachineconfigserverCsrRenewalRoleBindingYaml = []byte(`# CSRRenewa
 # certificates.
 #
 # This binding should be altered in the future to hold a list of node
-# names instead of targeting `+"`"+`system:nodes`+"`"+` so we can revoke invidivual
+# names instead of targeting ` + "`" + `system:nodes` + "`" + ` so we can revoke invidivual
 # node's ability to renew its certs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1623,8 +1624,8 @@ func manifestsMasterMachineconfigpoolYaml() (*asset, error) {
 var _manifestsOpenstackCorednsCorefileTmpl = []byte(`. {
     errors
     health
-    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{`+"`"+`{{.Cluster.MasterAmount}}`+"`"+`}} {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}
-    forward . {{`+"`"+`{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}`+"`"+`}}
+    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{` + "`" + `{{.Cluster.MasterAmount}}` + "`" + `}} {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}
+    forward . {{` + "`" + `{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}` + "`" + `}}
     cache 30
     reload
     hosts /etc/coredns/api-int.hosts {{ .ControllerConfig.EtcdDiscoveryDomain }} {
@@ -1764,33 +1765,33 @@ var _manifestsOpenstackKeepalivedConfTmpl = []byte(`# Configuration template for
 # For more information, see installer/data/data/bootstrap/baremetal/README.md
 # in the installer repo.
 
-vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_API {
+vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_API {
     state BACKUP
-    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
-    virtual_router_id {{`+"`"+`{{.Cluster.APIVirtualRouterID }}`+"`"+`}}
+    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
+    virtual_router_id {{` + "`" + `{{.Cluster.APIVirtualRouterID }}` + "`" + `}}
     priority 50
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_api_vip
+        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_api_vip
     }
     virtual_ipaddress {
-        {{`+"`"+`{{ .Cluster.APIVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+        {{` + "`" + `{{ .Cluster.APIVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
     }
 }
 
-vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_DNS {
+vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_DNS {
     state MASTER
-    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
-    virtual_router_id {{`+"`"+`{{.Cluster.DNSVirtualRouterID }}`+"`"+`}}
+    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
+    virtual_router_id {{` + "`" + `{{.Cluster.DNSVirtualRouterID }}` + "`" + `}}
     priority 140
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_dns_vip
+        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_dns_vip
     }
     virtual_ipaddress {
-        {{`+"`"+`{{ .Cluster.DNSVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+        {{` + "`" + `{{ .Cluster.DNSVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
     }
 }
 `)
