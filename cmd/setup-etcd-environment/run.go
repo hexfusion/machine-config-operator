@@ -171,15 +171,26 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if len(ep.Subsets) >= 1 {
-			if len(ep.Subsets[0].Addresses) == 0 {
+		hostEtcdEndpoint, err := client.CoreV1().Endpoints("openshift-etcd").Get("host-etcd", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if len(hostEtcdEndpoint.Subsets) != 1 {
+			return fmt.Errorf("openshift-etcd/host-etcd endpoint subset length should be %d, found %d", 1, len(hostEtcdEndpoint.Subsets))
+		}
+		for _, member := range hostEtcdEndpoint.Subsets[0].Addresses {
+			if member.Hostname == "etcd-bootstrap" {
 				endpoints = append(endpoints, "https://etcd-bootstrap."+runOpts.discoverySRV+":2379")
-			} else {
-				for _, s := range ep.Subsets[0].Addresses {
-					endpoints = append(endpoints, "https://"+s.IP+":2379")
-				}
+				break
 			}
 		}
+		if len(ep.Subsets) != 1 {
+			return fmt.Errorf("openshift-etcd/etcd endpoint subset length should be %d, found %d", 1, len(ep.Subsets))
+		}
+		for _, s := range ep.Subsets[0].Addresses {
+			endpoints = append(endpoints, "https://"+s.IP+":2379")
+		}
+
 		exportEnv["ENDPOINTS"] = strings.Join(endpoints, ",")
 	}
 
