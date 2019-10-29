@@ -9,7 +9,6 @@ require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/Masterminds/sprig v2.20.0+incompatible
-	github.com/ajeddeloh/go-json v0.0.0-20170920214419-6a2fe990e083 // indirect
 	github.com/ajeddeloh/yaml v0.0.0-20170912190910-6b94386aeefd // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/apparentlymart/go-cidr v1.0.0
@@ -18,7 +17,7 @@ require (
 	github.com/containers/image v3.0.2+incompatible
 	github.com/containers/storage v1.13.4
 	github.com/coreos/container-linux-config-transpiler v0.9.0
-	github.com/coreos/ignition v0.26.0
+	github.com/coreos/ignition v0.33.0
 	github.com/creack/pty v1.1.9 // indirect
 	github.com/cri-o/cri-o v1.9.0-beta.2.0.20191003162030-4775e1c05c26
 	github.com/davecgh/go-spew v1.1.1
@@ -39,7 +38,6 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/renameio v0.1.0
 	github.com/googleapis/gnostic v0.3.1 // indirect
-	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/huandu/xstrings v1.2.0 // indirect
 	github.com/imdario/mergo v0.3.7
@@ -50,6 +48,7 @@ require (
 	github.com/openshift/api v3.9.1-0.20191014195513-c9253efc14f4+incompatible
 	github.com/openshift/client-go v0.0.0-20191001081553-3b0e988f8cb0
 	github.com/openshift/cluster-api v0.0.0-20190923092624-4024de4fa64d
+	github.com/openshift/cluster-etcd-operator v0.0.0-alpha.0.0.20191025163650-5854b5c48ce4
 	github.com/openshift/library-go v0.0.0-20191003152030-97c62d8a2901
 	github.com/openshift/runtime-utils v0.0.0-20191011150825-9169de69ebf6
 	github.com/pkg/errors v0.8.1
@@ -60,13 +59,12 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/vincent-petithory/dataurl v0.0.0-20160330182126-9a301d65acbb
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	go4.org v0.0.0-20190313082347-94abd6928b1d // indirect
-	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc // indirect
+	golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf // indirect
 	golang.org/x/exp v0.0.0-20191002040644-a1355ae1e2c3 // indirect
-	golang.org/x/net v0.0.0-20191002035440-2ec189313ef0 // indirect
-	golang.org/x/sys v0.0.0-20191002091554-b397fe3ad8ed // indirect
+	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271 // indirect
+	golang.org/x/sys v0.0.0-20191028164358-195ce5e7f934 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20191002234911-9ade4c73f2af // indirect
+	golang.org/x/tools v0.0.0-20191029041327-9cc4af7d6b2c // indirect
 	gonum.org/v1/gonum v0.0.0-20190929233944-b20cf7805fc4 // indirect
 	gonum.org/v1/netlib v0.0.0-20190926062253-2d6e29b73a19 // indirect
 	gopkg.in/yaml.v2 v2.2.4 // indirect
