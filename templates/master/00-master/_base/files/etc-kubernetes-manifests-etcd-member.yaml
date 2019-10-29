@@ -19,15 +19,17 @@ contents:
         - "run"
         - "--discovery-srv={{.EtcdDiscoveryDomain}}"
         - "--output-file=/run/etcd/environment"
-        - "--bootstrap-srv=false"
+        - "--bootstrap-srv={{if .Images.clusterEtcdOperatorImageKey}}{{false}}{{else}}{{true}}{{end}}"
         - "--v=4"
         volumeMounts:
         - name: discovery
           mountPath: /run/etcd/
         - name: data-dir
           mountPath: /var/lib/etcd/
+      {{if .Images.clusterEtcdOperatorImageKey}}
         - name: sa
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
+      {{end}}
         - name: certs
           mountPath: /etc/ssl/etcd/
         env:
@@ -47,30 +49,45 @@ contents:
           set -euxo pipefail
 
           {{if .Images.clusterEtcdOperatorImageKey}}
-            COMMAND="cluster-etcd-operator mount"
+            SERVER_COMMAND="cluster-etcd-operator mount"
+            PEER_COMMAND="cluster-etcd-operator mount"
+            METRIC_COMMAND="cluster-etcd-operator mount"
           {{else}}
-            COMMAND="kube-client-agent request"
+            COMMAND="kube-client-agent request \
+                --kubeconfig=/etc/kubernetes/kubeconfig \"
+            SERVER_COMMAND="$COMMAND
+                --dnsnames={{etcdServerCertDNSNames .}} \
+                --ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \
+                --orgname=system:etcd-servers"
+            PEER_COMMAND="$COMMAND
+                --dnsnames={{etcdPeerCertDNSNames .}} \
+                --ipaddrs=${ETCD_IPV4_ADDRESS}
+                --orgname=system:etcd-peers"
+            METRIC_COMMAND="$COMMAND
+                --dnsnames={{etcdServerCertDNSNames .}} \
+                --ipaddrs=${ETCD_IPV4_ADDRESS} \
+                --orgname=system:etcd-metrics"
           {{end}}
 
           source /run/etcd/environment
 
           [ -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.key ] || \
-            $COMMAND \
+            $SERVER_COMMAND \
                 --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-server:${ETCD_DNS_NAME}
+                --commonname=system:etcd-server:${ETCD_DNS_NAME} \
 
           [ -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.key ] || \
-            $COMMAND \
+            $PEER_COMMAND \
                 --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-peer:${ETCD_DNS_NAME}
+                --commonname=system:etcd-peer:${ETCD_DNS_NAME} \
 
           [ -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.key ] || \
-            $COMMAND \
+            $METRIC_COMMAND \
                 --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-metric:${ETCD_DNS_NAME}
+                --commonname=system:etcd-metric:${ETCD_DNS_NAME} \
 
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
@@ -78,8 +95,10 @@ contents:
           mountPath: /run/etcd/
         - name: certs
           mountPath: /etc/ssl/etcd/
+      {{if .Images.clusterEtcdOperatorImageKey}}
         - name: sa
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount/
+      {{end}}
     {{if .Images.clusterEtcdOperatorImageKey}}
       - name: membership
         image: "{{.Images.etcdKey}}"
@@ -235,6 +254,8 @@ contents:
       - name: conf
         hostPath:
           path: /etc/etcd
+    {{if .Images.clusterEtcdOperatorImageKey}}
       - name: sa
         hostPath:
           path: /etc/kubernetes/static-pod-resources/etcd-member/secrets/kubernetes.io/sa-token
+    {{end}}
