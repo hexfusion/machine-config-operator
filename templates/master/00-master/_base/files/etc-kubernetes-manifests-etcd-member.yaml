@@ -21,6 +21,8 @@ contents:
         - "--output-file=/run/etcd/environment"
         - "--bootstrap-srv={{if .Images.clusterEtcdOperatorImageKey}}{{false}}{{else}}{{true}}{{end}}"
         - "--v=4"
+        securityContext:
+          privileged: true
         volumeMounts:
         - name: discovery
           mountPath: /run/etcd/
@@ -89,6 +91,8 @@ contents:
                 --assetsdir=/etc/ssl/etcd \
                 --commonname=system:etcd-metric:${ETCD_DNS_NAME} \
 
+        securityContext:
+          privileged: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: discovery
@@ -120,6 +124,8 @@ contents:
             echo "waiting for $ETCD_DNS_NAME to be added to etcd membership"
             sleep 2
           done
+        securityContext:
+          privileged: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: discovery
@@ -168,6 +174,8 @@ contents:
             --listen-client-urls=https://0.0.0.0:2379 \
             --listen-peer-urls=https://0.0.0.0:2380 \
             --listen-metrics-urls=https://0.0.0.0:9978 \
+        securityContext:
+          privileged: true
         resources:
           requests:
             memory: 600Mi

@@ -12,12 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/wait"
-
 	"github.com/golang/glog"
 	"github.com/joho/godotenv"
 	"github.com/openshift/machine-config-operator/pkg/version"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 var (

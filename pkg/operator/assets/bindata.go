@@ -16,6 +16,7 @@
 // manifests/machineconfigcontroller/sa.yaml
 // manifests/machineconfigdaemon/clusterrole.yaml
 // manifests/machineconfigdaemon/clusterrolebinding.yaml
+// manifests/machineconfigdaemon/cookie-secret.yaml
 // manifests/machineconfigdaemon/daemonset.yaml
 // manifests/machineconfigdaemon/events-clusterrole.yaml
 // manifests/machineconfigdaemon/events-rolebinding-default.yaml
@@ -36,6 +37,10 @@
 // manifests/openstack/coredns.yaml
 // manifests/openstack/keepalived.conf.tmpl
 // manifests/openstack/keepalived.yaml
+// manifests/ovirt/coredns-corefile.tmpl
+// manifests/ovirt/coredns.yaml
+// manifests/ovirt/keepalived.conf.tmpl
+// manifests/ovirt/keepalived.yaml
 // manifests/worker.machineconfigpool.yaml
 package assets
 
@@ -47,7 +52,6 @@ import (
 	"strings"
 	"time"
 )
-
 type asset struct {
 	bytes []byte
 	info  os.FileInfo
@@ -75,7 +79,7 @@ func (fi bindataFileInfo) Mode() os.FileMode {
 	return fi.mode
 }
 
-// ModTime return file modify time
+// Mode return file modify time
 func (fi bindataFileInfo) ModTime() time.Time {
 	return fi.modTime
 }
@@ -92,9 +96,9 @@ func (fi bindataFileInfo) Sys() interface{} {
 
 var _manifestsBaremetalCorednsCorefileTmpl = []byte(`. {
     errors
-    health
-    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{` + "`" + `{{.Cluster.MasterAmount}}` + "`" + `}} {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}
-    forward . {{` + "`" + `{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}` + "`" + `}}
+    health :18080
+    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{`+"`"+`{{.Cluster.MasterAmount}}`+"`"+`}} {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}
+    forward . {{`+"`"+`{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}`+"`"+`}}
     cache 30
     reload
     hosts /etc/coredns/api-int.hosts {{ .ControllerConfig.EtcdDiscoveryDomain }} {
@@ -189,7 +193,7 @@ spec:
     readinessProbe:
       httpGet:
         path: /health
-        port: 8080
+        port: 18080
         scheme: HTTP
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -199,7 +203,7 @@ spec:
     livenessProbe:
       httpGet:
         path: /health
-        port: 8080
+        port: 18080
         scheme: HTTP
       initialDelaySeconds: 60
       timeoutSeconds: 5
@@ -234,33 +238,33 @@ var _manifestsBaremetalKeepalivedConfTmpl = []byte(`# Configuration template for
 # For more information, see installer/data/data/bootstrap/baremetal/README.md
 # in the installer repo.
 
-vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_API {
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_API {
     state BACKUP
-    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
-    virtual_router_id {{` + "`" + `{{.Cluster.APIVirtualRouterID }}` + "`" + `}}
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.APIVirtualRouterID }}`+"`"+`}}
     priority 50
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_api_vip
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_api_vip
     }
     virtual_ipaddress {
-        {{` + "`" + `{{ .Cluster.APIVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
+        {{`+"`"+`{{ .Cluster.APIVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
     }
 }
 
-vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_DNS {
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_DNS {
     state MASTER
-    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
-    virtual_router_id {{` + "`" + `{{.Cluster.DNSVirtualRouterID }}` + "`" + `}}
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.DNSVirtualRouterID }}`+"`"+`}}
     priority 140
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_dns_vip
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_dns_vip
     }
     virtual_ipaddress {
-        {{` + "`" + `{{ .Cluster.DNSVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
+        {{`+"`"+`{{ .Cluster.DNSVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
     }
 }
 `)
@@ -1023,6 +1027,19 @@ rules:
 - apiGroups: ["machineconfiguration.openshift.io"]
   resources: ["machineconfigs"]
   verbs: ["*"]
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
 `)
 
 func manifestsMachineconfigdaemonClusterroleYamlBytes() ([]byte, error) {
@@ -1052,6 +1069,21 @@ subjects:
 - kind: ServiceAccount
   namespace: {{.TargetNamespace}}
   name: machine-config-daemon
+---
+# Bind auth-delegator role to the MCD service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: machine-config-daemon
+  namespace: {{.TargetNamespace}}
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  namespace: {{.TargetNamespace}}
+  name: machine-config-daemon
 `)
 
 func manifestsMachineconfigdaemonClusterrolebindingYamlBytes() ([]byte, error) {
@@ -1065,6 +1097,31 @@ func manifestsMachineconfigdaemonClusterrolebindingYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "manifests/machineconfigdaemon/clusterrolebinding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _manifestsMachineconfigdaemonCookieSecretYaml = []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: cookie-secret
+  namespace: {{.TargetNamespace}}
+type: Opaque
+data:
+  cookie-secret: {{.GenerateProxyCookieSecret}}
+`)
+
+func manifestsMachineconfigdaemonCookieSecretYamlBytes() ([]byte, error) {
+	return _manifestsMachineconfigdaemonCookieSecretYaml, nil
+}
+
+func manifestsMachineconfigdaemonCookieSecretYaml() (*asset, error) {
+	bytes, err := manifestsMachineconfigdaemonCookieSecretYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "manifests/machineconfigdaemon/cookie-secret.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -1105,6 +1162,31 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+      - name: oauth-proxy
+        image: {{.Images.OauthProxy}}
+        ports:
+        - containerPort: 9001
+          name: metrics
+          protocol: TCP
+        args:
+        - --https-address=:9001
+        - --provider=openshift
+        - --openshift-service-account=machine-config-daemon
+        - --upstream=http://127.0.0.1:8797
+        - --tls-cert=/etc/tls/private/tls.crt
+        - --tls-key=/etc/tls/private/tls.key
+        - --cookie-secret-file=/etc/tls/cookie-secret/cookie-secret
+        - '--openshift-sar={"resource": "namespaces", "verb": "get"}'
+        - '--openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get"}}'
+        resources:
+          requests:
+            cpu: 20m
+            memory: 50Mi
+        volumeMounts:
+        - mountPath: /etc/tls/private
+          name: proxy-tls
+        - mountPath: /etc/tls/cookie-secret
+          name: cookie-secret
       hostNetwork: true
       hostPID: true
       serviceAccountName: machine-config-daemon
@@ -1123,6 +1205,12 @@ spec:
         - name: rootfs
           hostPath:
             path: /
+        - name: proxy-tls
+          secret:
+            secretName: proxy-tls
+        - name: cookie-secret
+          secret:
+            secretName: cookie-secret
 `)
 
 func manifestsMachineconfigdaemonDaemonsetYamlBytes() ([]byte, error) {
@@ -1270,6 +1358,22 @@ spec:
     description: When progress is blocked on updating one or more nodes, or the pool configuration is failing.
     name: Degraded
     type: string
+  - JSONPath: .status.machineCount
+    description: Total number of machines in the machine config pool
+    name: MachineCount
+    type: number
+  - JSONPath: .status.readyMachineCount
+    description: Total number of ready machines targeted by the pool
+    name: ReadyMachineCount
+    type: number
+  - JSONPath: .status.updatedMachineCount
+    description: Total number of machines targeted by the pool that have the CurrentMachineConfig as their config
+    name: UpdatedMachineCount
+    type: number
+  - JSONPath: .status.degradedMachineCount
+    description: Total number of machines marked degraded (or unreconcilable)
+    name: DegradedMachineCount
+    type: number
   # group name to use for REST API: /apis/<group>/<version>
   group: machineconfiguration.openshift.io
   # list of versions supported by this CustomResourceDefinition
@@ -1365,7 +1469,7 @@ func manifestsMachineconfigserverClusterrolebindingYaml() (*asset, error) {
 	return a, nil
 }
 
-var _manifestsMachineconfigserverCsrBootstrapRoleBindingYaml = []byte(`# system-bootstrap-node-bootstrapper lets serviceaccount ` + "`" + `openshift-machine-config-operator/node-bootstrapper` + "`" + ` tokens and nodes request CSRs.
+var _manifestsMachineconfigserverCsrBootstrapRoleBindingYaml = []byte(`# system-bootstrap-node-bootstrapper lets serviceaccount `+"`"+`openshift-machine-config-operator/node-bootstrapper`+"`"+` tokens and nodes request CSRs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -1399,7 +1503,7 @@ var _manifestsMachineconfigserverCsrRenewalRoleBindingYaml = []byte(`# CSRRenewa
 # certificates.
 #
 # This binding should be altered in the future to hold a list of node
-# names instead of targeting ` + "`" + `system:nodes` + "`" + ` so we can revoke invidivual
+# names instead of targeting `+"`"+`system:nodes`+"`"+` so we can revoke invidivual
 # node's ability to renew its certs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1623,9 +1727,9 @@ func manifestsMasterMachineconfigpoolYaml() (*asset, error) {
 
 var _manifestsOpenstackCorednsCorefileTmpl = []byte(`. {
     errors
-    health
-    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{` + "`" + `{{.Cluster.MasterAmount}}` + "`" + `}} {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}
-    forward . {{` + "`" + `{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}` + "`" + `}}
+    health :18080
+    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{`+"`"+`{{.Cluster.MasterAmount}}`+"`"+`}} {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}
+    forward . {{`+"`"+`{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}`+"`"+`}}
     cache 30
     reload
     hosts /etc/coredns/api-int.hosts {{ .ControllerConfig.EtcdDiscoveryDomain }} {
@@ -1655,11 +1759,11 @@ kind: Pod
 apiVersion: v1
 metadata:
   name: coredns
-  namespace: openshift-kni-infra
+  namespace: openshift-openstack-infra
   creationTimestamp:
   deletionGracePeriodSeconds: 65
   labels:
-    app: kni-infra-mdns
+    app: openstack-infra-mdns
 spec:
   volumes:
   - name: resource-dir
@@ -1720,7 +1824,7 @@ spec:
     readinessProbe:
       httpGet:
         path: /health
-        port: 8080
+        port: 18080
         scheme: HTTP
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -1730,7 +1834,7 @@ spec:
     livenessProbe:
       httpGet:
         path: /health
-        port: 8080
+        port: 18080
         scheme: HTTP
       initialDelaySeconds: 60
       timeoutSeconds: 5
@@ -1765,33 +1869,33 @@ var _manifestsOpenstackKeepalivedConfTmpl = []byte(`# Configuration template for
 # For more information, see installer/data/data/bootstrap/baremetal/README.md
 # in the installer repo.
 
-vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_API {
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_API {
     state BACKUP
-    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
-    virtual_router_id {{` + "`" + `{{.Cluster.APIVirtualRouterID }}` + "`" + `}}
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.APIVirtualRouterID }}`+"`"+`}}
     priority 50
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_api_vip
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_api_vip
     }
     virtual_ipaddress {
-        {{` + "`" + `{{ .Cluster.APIVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
+        {{`+"`"+`{{ .Cluster.APIVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
     }
 }
 
-vrrp_instance {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_DNS {
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_DNS {
     state MASTER
-    interface {{` + "`" + `{{.VRRPInterface}}` + "`" + `}}
-    virtual_router_id {{` + "`" + `{{.Cluster.DNSVirtualRouterID }}` + "`" + `}}
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.DNSVirtualRouterID }}`+"`"+`}}
     priority 140
     advert_int 1
     authentication {
         auth_type PASS
-        auth_pass {{` + "`" + `{{.Cluster.Name}}` + "`" + `}}_dns_vip
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_dns_vip
     }
     virtual_ipaddress {
-        {{` + "`" + `{{ .Cluster.DNSVIP }}` + "`" + `}}/{{` + "`" + `{{ .Cluster.VIPNetmask }}` + "`" + `}}
+        {{`+"`"+`{{ .Cluster.DNSVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
     }
 }
 `)
@@ -1816,11 +1920,11 @@ kind: Pod
 apiVersion: v1
 metadata:
   name: keepalived
-  namespace: openshift-kni-infra
+  namespace: openshift-openstack-infra
   creationTimestamp:
   deletionGracePeriodSeconds: 65
   labels:
-    app: kni-infra-vrrp
+    app: openstack-infra-vrrp
 spec:
   volumes:
   - name: resource-dir
@@ -1907,6 +2011,296 @@ func manifestsOpenstackKeepalivedYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "manifests/openstack/keepalived.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _manifestsOvirtCorednsCorefileTmpl = []byte(`. {
+    errors
+    health :18080
+    mdns {{ .ControllerConfig.EtcdDiscoveryDomain }} {{`+"`"+`{{.Cluster.MasterAmount}}`+"`"+`}} {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}
+    forward . {{`+"`"+`{{- range $upstream := .DNSUpstreams}} {{$upstream}}{{- end}}`+"`"+`}}
+    cache 30
+    reload
+    hosts /etc/coredns/api-int.hosts {{ .ControllerConfig.EtcdDiscoveryDomain }} {
+        {{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.APIServerInternalIP }} api-int.{{ .ControllerConfig.EtcdDiscoveryDomain }} api.{{ .ControllerConfig.EtcdDiscoveryDomain }}
+        fallthrough
+    }
+}
+`)
+
+func manifestsOvirtCorednsCorefileTmplBytes() ([]byte, error) {
+	return _manifestsOvirtCorednsCorefileTmpl, nil
+}
+
+func manifestsOvirtCorednsCorefileTmpl() (*asset, error) {
+	bytes, err := manifestsOvirtCorednsCorefileTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "manifests/ovirt/coredns-corefile.tmpl", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _manifestsOvirtCorednsYaml = []byte(`---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: coredns
+  namespace: openshift-ovirt-infra
+  creationTimestamp:
+  deletionGracePeriodSeconds: 65
+  labels:
+    app: ovirt-infra-mdns
+spec:
+  volumes:
+  - name: resource-dir
+    hostPath:
+      path: "/etc/kubernetes/static-pod-resources/coredns"
+  - name: kubeconfig
+    hostPath:
+      path: "/etc/kubernetes/kubeconfig"
+  - name: conf-dir
+    empty-dir: {}
+  - name: manifests
+    hostPath:
+      path: "/opt/openshift/manifests"
+  initContainers:
+  - name: render-config
+    image: {{ .Images.BaremetalRuntimeCfgBootstrap }}
+    command:
+    - runtimecfg
+    - render
+    - "/etc/kubernetes/kubeconfig"
+    - "--api-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.APIServerInternalIP }}"
+    - "--dns-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.NodeDNSIP }}"
+    - "--ingress-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.IngressIP }}"
+    - "/config"
+    - "--out-dir"
+    - "/etc/coredns"
+    - "--cluster-config"
+    - "/opt/openshift/manifests/cluster-config.yaml"
+    resources: {}
+    volumeMounts:
+    - name: kubeconfig
+      mountPath: "/etc/kubernetes/kubeconfig"
+    - name: resource-dir
+      mountPath: "/config"
+    - name: conf-dir
+      mountPath: "/etc/coredns"
+    - name: manifests
+      mountPath: "/opt/openshift/manifests"
+    imagePullPolicy: IfNotPresent
+  containers:
+  - name: coredns
+    securityContext:
+      privileged: true
+    image: {{ .Images.CorednsBootstrap }}
+    args:
+    - "--conf"
+    - "/etc/coredns/Corefile"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 1Gi
+    volumeMounts:
+    - name: conf-dir
+      mountPath: "/etc/coredns"
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 18080
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+      timeoutSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 18080
+        scheme: HTTP
+      initialDelaySeconds: 60
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 5
+    terminationMessagePolicy: FallbackToLogsOnError
+  hostNetwork: true
+  tolerations:
+  - operator: Exists
+  priorityClassName: system-node-critical
+status: {}
+`)
+
+func manifestsOvirtCorednsYamlBytes() ([]byte, error) {
+	return _manifestsOvirtCorednsYaml, nil
+}
+
+func manifestsOvirtCorednsYaml() (*asset, error) {
+	bytes, err := manifestsOvirtCorednsYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "manifests/ovirt/coredns.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _manifestsOvirtKeepalivedConfTmpl = []byte(`# Configuration template for Keepalived, which is used to manage the DNS and
+# API VIPs.
+#
+# For more information, see installer/data/data/bootstrap/baremetal/README.md
+# in the installer repo.
+
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_API {
+    state BACKUP
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.APIVirtualRouterID }}`+"`"+`}}
+    priority 50
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_api_vip
+    }
+    virtual_ipaddress {
+        {{`+"`"+`{{ .Cluster.APIVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+    }
+}
+
+vrrp_instance {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_DNS {
+    state MASTER
+    interface {{`+"`"+`{{.VRRPInterface}}`+"`"+`}}
+    virtual_router_id {{`+"`"+`{{.Cluster.DNSVirtualRouterID }}`+"`"+`}}
+    priority 140
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{`+"`"+`{{.Cluster.Name}}`+"`"+`}}_dns_vip
+    }
+    virtual_ipaddress {
+        {{`+"`"+`{{ .Cluster.DNSVIP }}`+"`"+`}}/{{`+"`"+`{{ .Cluster.VIPNetmask }}`+"`"+`}}
+    }
+}
+`)
+
+func manifestsOvirtKeepalivedConfTmplBytes() ([]byte, error) {
+	return _manifestsOvirtKeepalivedConfTmpl, nil
+}
+
+func manifestsOvirtKeepalivedConfTmpl() (*asset, error) {
+	bytes, err := manifestsOvirtKeepalivedConfTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "manifests/ovirt/keepalived.conf.tmpl", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _manifestsOvirtKeepalivedYaml = []byte(`---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: keepalived
+  namespace: openshift-ovirt-infra
+  creationTimestamp:
+  deletionGracePeriodSeconds: 65
+  labels:
+    app: ovirt-infra-vrrp
+spec:
+  volumes:
+  - name: resource-dir
+    hostPath:
+      path: "/etc/kubernetes/static-pod-resources/keepalived"
+  - name: kubeconfig
+    hostPath:
+      path: "/etc/kubernetes/kubeconfig"
+  - name: conf-dir
+    empty-dir: {}
+  - name: manifests
+    hostPath:
+      path: "/opt/openshift/manifests"
+  initContainers:
+  - name: render-config
+    image: {{ .Images.BaremetalRuntimeCfgBootstrap }}
+    command:
+    - runtimecfg
+    - render
+    - "/etc/kubernetes/kubeconfig"
+    - "--api-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.APIServerInternalIP }}"
+    - "--dns-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.NodeDNSIP }}"
+    - "--ingress-vip"
+    - "{{ .ControllerConfig.Infra.Status.PlatformStatus.Ovirt.IngressIP }}"
+    - "/config"
+    - "--out-dir"
+    - "/etc/keepalived"
+    - "--cluster-config"
+    - "/opt/openshift/manifests/cluster-config.yaml"
+    resources: {}
+    volumeMounts:
+    - name: resource-dir
+      mountPath: "/config"
+    - name: kubeconfig
+      mountPath: "/etc/kubernetes/kubeconfig"
+    - name: conf-dir
+      mountPath: "/etc/keepalived"
+    - name: manifests
+      mountPath: "/opt/openshift/manifests"
+    imagePullPolicy: IfNotPresent
+  containers:
+  - name: keepalived
+    securityContext:
+      privileged: true
+    image: {{ .Images.KeepalivedBootstrap }}
+    env:
+      - name: NSS_SDB_USE_CACHE
+        value: "no"
+    command:
+    - /usr/sbin/keepalived
+    args:
+    - "-f"
+    - "/etc/keepalived/keepalived.conf"
+    - "--dont-fork"
+    - "--vrrp"
+    - "--log-detail"
+    - "--log-console"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 1Gi
+    volumeMounts:
+    - name: conf-dir
+      mountPath: "/etc/keepalived"
+    terminationMessagePolicy: FallbackToLogsOnError
+    imagePullPolicy: IfNotPresent
+  hostNetwork: true
+  tolerations:
+  - operator: Exists
+  priorityClassName: system-node-critical
+status: {}
+`)
+
+func manifestsOvirtKeepalivedYamlBytes() ([]byte, error) {
+	return _manifestsOvirtKeepalivedYaml, nil
+}
+
+func manifestsOvirtKeepalivedYaml() (*asset, error) {
+	bytes, err := manifestsOvirtKeepalivedYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "manifests/ovirt/keepalived.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -2008,6 +2402,7 @@ var _bindata = map[string]func() (*asset, error){
 	"manifests/machineconfigcontroller/sa.yaml":                              manifestsMachineconfigcontrollerSaYaml,
 	"manifests/machineconfigdaemon/clusterrole.yaml":                         manifestsMachineconfigdaemonClusterroleYaml,
 	"manifests/machineconfigdaemon/clusterrolebinding.yaml":                  manifestsMachineconfigdaemonClusterrolebindingYaml,
+	"manifests/machineconfigdaemon/cookie-secret.yaml":                       manifestsMachineconfigdaemonCookieSecretYaml,
 	"manifests/machineconfigdaemon/daemonset.yaml":                           manifestsMachineconfigdaemonDaemonsetYaml,
 	"manifests/machineconfigdaemon/events-clusterrole.yaml":                  manifestsMachineconfigdaemonEventsClusterroleYaml,
 	"manifests/machineconfigdaemon/events-rolebinding-default.yaml":          manifestsMachineconfigdaemonEventsRolebindingDefaultYaml,
@@ -2028,6 +2423,10 @@ var _bindata = map[string]func() (*asset, error){
 	"manifests/openstack/coredns.yaml":                                       manifestsOpenstackCorednsYaml,
 	"manifests/openstack/keepalived.conf.tmpl":                               manifestsOpenstackKeepalivedConfTmpl,
 	"manifests/openstack/keepalived.yaml":                                    manifestsOpenstackKeepalivedYaml,
+	"manifests/ovirt/coredns-corefile.tmpl":                                  manifestsOvirtCorednsCorefileTmpl,
+	"manifests/ovirt/coredns.yaml":                                           manifestsOvirtCorednsYaml,
+	"manifests/ovirt/keepalived.conf.tmpl":                                   manifestsOvirtKeepalivedConfTmpl,
+	"manifests/ovirt/keepalived.yaml":                                        manifestsOvirtKeepalivedYaml,
 	"manifests/worker.machineconfigpool.yaml":                                manifestsWorkerMachineconfigpoolYaml,
 }
 
@@ -2094,6 +2493,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"machineconfigdaemon": &bintree{nil, map[string]*bintree{
 			"clusterrole.yaml":                &bintree{manifestsMachineconfigdaemonClusterroleYaml, map[string]*bintree{}},
 			"clusterrolebinding.yaml":         &bintree{manifestsMachineconfigdaemonClusterrolebindingYaml, map[string]*bintree{}},
+			"cookie-secret.yaml":              &bintree{manifestsMachineconfigdaemonCookieSecretYaml, map[string]*bintree{}},
 			"daemonset.yaml":                  &bintree{manifestsMachineconfigdaemonDaemonsetYaml, map[string]*bintree{}},
 			"events-clusterrole.yaml":         &bintree{manifestsMachineconfigdaemonEventsClusterroleYaml, map[string]*bintree{}},
 			"events-rolebinding-default.yaml": &bintree{manifestsMachineconfigdaemonEventsRolebindingDefaultYaml, map[string]*bintree{}},
@@ -2118,6 +2518,12 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"coredns.yaml":          &bintree{manifestsOpenstackCorednsYaml, map[string]*bintree{}},
 			"keepalived.conf.tmpl":  &bintree{manifestsOpenstackKeepalivedConfTmpl, map[string]*bintree{}},
 			"keepalived.yaml":       &bintree{manifestsOpenstackKeepalivedYaml, map[string]*bintree{}},
+		}},
+		"ovirt": &bintree{nil, map[string]*bintree{
+			"coredns-corefile.tmpl": &bintree{manifestsOvirtCorednsCorefileTmpl, map[string]*bintree{}},
+			"coredns.yaml":          &bintree{manifestsOvirtCorednsYaml, map[string]*bintree{}},
+			"keepalived.conf.tmpl":  &bintree{manifestsOvirtKeepalivedConfTmpl, map[string]*bintree{}},
+			"keepalived.yaml":       &bintree{manifestsOvirtKeepalivedYaml, map[string]*bintree{}},
 		}},
 		"worker.machineconfigpool.yaml": &bintree{manifestsWorkerMachineconfigpoolYaml, map[string]*bintree{}},
 	}},
