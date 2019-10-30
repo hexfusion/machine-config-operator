@@ -205,13 +205,13 @@ func Test_etcdServerCertCommand(t *testing.T) {
 				}},
 			},
 			want: "kube-client-agent \\\n" +
-				"    request \\\n" +
-				"    --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
-				"    --orgname=system:etcd-servers \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				fmt.Sprintf("    --dnsnames=%s \\\n", serverDNS) +
-				"    --commonname=system:etcd-server:${ETCD_DNS_NAME} \\\n" +
-				"    --ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \\",
+				"              request \\\n" +
+				"              --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				"              --orgname=system:etcd-servers \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf("              --dnsnames=%s \\\n", serverDNS) +
+				"              --commonname=system:etcd-server:${ETCD_DNS_NAME} \\\n" +
+				"              --ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \\",
 
 			wantErr: false,
 		},
@@ -225,9 +225,9 @@ func Test_etcdServerCertCommand(t *testing.T) {
 				}},
 			},
 			want: "cluster-etcd-operator \\\n" +
-				"    mount \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				"    --commonname=system:etcd-server:${ETCD_DNS_NAME} \\",
+				"              mount \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				"              --commonname=system:etcd-server:${ETCD_DNS_NAME} \\",
 			wantErr: false,
 		},
 	}
@@ -275,13 +275,13 @@ func Test_etcdPeerCertCommand(t *testing.T) {
 				}},
 			},
 			want: "kube-client-agent \\\n" +
-				"    request \\\n" +
-				"    --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
-				"    --orgname=system:etcd-peers \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				fmt.Sprintf("    --dnsnames=%s \\\n", peerDNS) +
-				"    --commonname=system:etcd-peer:${ETCD_DNS_NAME} \\\n" +
-				"    --ipaddrs=${ETCD_IPV4_ADDRESS} \\",
+				"              request \\\n" +
+				"              --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				"              --orgname=system:etcd-peers \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf("              --dnsnames=%s \\\n", peerDNS) +
+				"              --commonname=system:etcd-peer:${ETCD_DNS_NAME} \\\n" +
+				"              --ipaddrs=${ETCD_IPV4_ADDRESS} \\",
 			wantErr: false,
 		},
 		{
@@ -295,9 +295,9 @@ func Test_etcdPeerCertCommand(t *testing.T) {
 				}},
 			},
 			want: "cluster-etcd-operator \\\n" +
-				"    mount \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				"    --commonname=system:etcd-peer:${ETCD_DNS_NAME} \\",
+				"              mount \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				"              --commonname=system:etcd-peer:${ETCD_DNS_NAME} \\",
 			wantErr: false,
 		},
 	}
@@ -316,7 +316,7 @@ func Test_etcdPeerCertCommand(t *testing.T) {
 }
 
 func Test_etcdMetricCertCommand(t *testing.T) {
-	peerDNS, err := etcdServerCertDNSNames(RenderConfig{})
+	metricDNS, err := etcdServerCertDNSNames(RenderConfig{})
 	if err != nil {
 		t.Errorf("Error getting metric cert dns names %#v", err)
 	}
@@ -339,13 +339,13 @@ func Test_etcdMetricCertCommand(t *testing.T) {
 				}},
 			},
 			want: "kube-client-agent \\\n" +
-				"    request \\\n" +
-				"    --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
-				"    --orgname=system:etcd-metrics \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				fmt.Sprintf("    --dnsnames=%s \\\n", peerDNS) +
-				"    --commonname=system:etcd-metric:${ETCD_DNS_NAME} \\\n" +
-				"    --ipaddrs=${ETCD_IPV4_ADDRESS} \\",
+				"              request \\\n" +
+				"              --kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				"              --orgname=system:etcd-metrics \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf("              --dnsnames=%s \\\n", metricDNS) +
+				"              --commonname=system:etcd-metric:${ETCD_DNS_NAME} \\\n" +
+				"              --ipaddrs=${ETCD_IPV4_ADDRESS} \\",
 			wantErr: false,
 		},
 		{
@@ -358,9 +358,9 @@ func Test_etcdMetricCertCommand(t *testing.T) {
 				}},
 			},
 			want: "cluster-etcd-operator \\\n" +
-				"    mount \\\n" +
-				"    --assetsdir=/etc/ssl/etcd \\\n" +
-				"    --commonname=system:etcd-metric:${ETCD_DNS_NAME} \\",
+				"              mount \\\n" +
+				"              --assetsdir=/etc/ssl/etcd \\\n" +
+				"              --commonname=system:etcd-metric:${ETCD_DNS_NAME} \\",
 			wantErr: false,
 		},
 	}

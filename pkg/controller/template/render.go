@@ -406,7 +406,7 @@ func etcdServerCertCommand(cfg RenderConfig) (interface{}, error) {
 			"--commonname=system:etcd-server:${ETCD_DNS_NAME} \\",
 		}...)
 	}
-	return strings.Join(commands, "\n    "), nil
+	return strings.Join(commands, fmt.Sprintf("%-15s", "\n")), nil
 }
 
 func etcdPeerCertCommand(cfg RenderConfig) (interface{}, error) {
@@ -434,7 +434,7 @@ func etcdPeerCertCommand(cfg RenderConfig) (interface{}, error) {
 			"--commonname=system:etcd-peer:${ETCD_DNS_NAME} \\",
 		}...)
 	}
-	return strings.Join(commands, "\n    "), nil
+	return strings.Join(commands, fmt.Sprintf("%-15s", "\n")), nil
 }
 
 func etcdMetricCertCommand(cfg RenderConfig) (interface{}, error) {
@@ -462,7 +462,7 @@ func etcdMetricCertCommand(cfg RenderConfig) (interface{}, error) {
 			"--commonname=system:etcd-metric:${ETCD_DNS_NAME} \\",
 		}...)
 	}
-	return strings.Join(commands, "\n    "), nil
+	return strings.Join(commands, fmt.Sprintf("%-15s", "\n")), nil
 }
 
 func cloudProvider(cfg RenderConfig) (interface{}, error) {
