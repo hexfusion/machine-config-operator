@@ -50,46 +50,18 @@ contents:
           #!/bin/sh
           set -euxo pipefail
 
-          {{if .Images.clusterEtcdOperatorImageKey}}
-            SERVER_COMMAND="cluster-etcd-operator mount"
-            PEER_COMMAND="cluster-etcd-operator mount"
-            METRIC_COMMAND="cluster-etcd-operator mount"
-          {{else}}
-            COMMAND="kube-client-agent request \
-                --kubeconfig=/etc/kubernetes/kubeconfig \"
-            SERVER_COMMAND="$COMMAND
-                --dnsnames={{etcdServerCertDNSNames .}} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \
-                --orgname=system:etcd-servers"
-            PEER_COMMAND="$COMMAND
-                --dnsnames={{etcdPeerCertDNSNames .}} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS}
-                --orgname=system:etcd-peers"
-            METRIC_COMMAND="$COMMAND
-                --dnsnames={{etcdServerCertDNSNames .}} \
-                --ipaddrs=${ETCD_IPV4_ADDRESS} \
-                --orgname=system:etcd-metrics"
-          {{end}}
-
           source /run/etcd/environment
 
           [ -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-server:${ETCD_DNS_NAME}.key ] || \
-            $SERVER_COMMAND \
-                --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-server:${ETCD_DNS_NAME} \
+              {{etcdServerCertCommand .}}
 
           [ -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-peer:${ETCD_DNS_NAME}.key ] || \
-            $PEER_COMMAND \
-                --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-peer:${ETCD_DNS_NAME} \
-
+              {{etcdPeerCertCommand .}}
           [ -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.crt -a \
             -e /etc/ssl/etcd/system:etcd-metric:${ETCD_DNS_NAME}.key ] || \
-            $METRIC_COMMAND \
-                --assetsdir=/etc/ssl/etcd \
-                --commonname=system:etcd-metric:${ETCD_DNS_NAME} \
+              {{etcdMetricCertCommand .}}
 
         securityContext:
           privileged: true
