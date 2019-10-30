@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
@@ -175,6 +176,203 @@ func TestEtcdServerCertDNSNames(t *testing.T) {
 
 			if string(got) != c.url {
 				t.Fatalf("mismatch got: %s want: %s", got, c.url)
+			}
+		})
+	}
+}
+
+func Test_etcdServerCertCommand(t *testing.T) {
+	serverDNS, err := etcdServerCertDNSNames(RenderConfig{})
+	if err != nil {
+		t.Errorf("Error getting server cert dns names %#v", err)
+	}
+	type args struct {
+		cfg RenderConfig
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			name: "bootstrap without Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "",
+					},
+				}},
+			},
+			want: "kube-client-agent \\\n" +
+				etcdSpaceDelimiter + "request \\\n" +
+				etcdSpaceDelimiter + "--kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				etcdSpaceDelimiter + "--orgname=system:etcd-servers \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf(etcdSpaceDelimiter+"--dnsnames=%s \\\n", serverDNS) +
+				etcdSpaceDelimiter + "--commonname=system:etcd-server:${ETCD_DNS_NAME} \\\n" +
+				etcdSpaceDelimiter + "--ipaddrs=${ETCD_IPV4_ADDRESS},127.0.0.1 \\",
+
+			wantErr: false,
+		},
+		{
+			name: "bootstrap with Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "foo",
+					},
+				}},
+			},
+			want: "cluster-etcd-operator \\\n" +
+				etcdSpaceDelimiter + "mount \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				etcdSpaceDelimiter + "--commonname=system:etcd-server:${ETCD_DNS_NAME} \\",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := etcdServerCertCommand(tt.args.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("etcdServerCertCommand() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("etcdServerCertCommand() got = (%v), want (%v)", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_etcdPeerCertCommand(t *testing.T) {
+	discoveryDomain := "foo"
+	peerDNS, err := etcdPeerCertDNSNames(RenderConfig{
+		ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+			EtcdDiscoveryDomain: discoveryDomain,
+		}},
+	)
+	if err != nil {
+		t.Errorf("Error getting peer cert dns names %#v", err)
+	}
+	type args struct {
+		cfg RenderConfig
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			name: "bootstrap without Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "",
+					},
+					EtcdDiscoveryDomain: discoveryDomain,
+				}},
+			},
+			want: "kube-client-agent \\\n" +
+				etcdSpaceDelimiter + "request \\\n" +
+				etcdSpaceDelimiter + "--kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				etcdSpaceDelimiter + "--orgname=system:etcd-peers \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf(etcdSpaceDelimiter+"--dnsnames=%s \\\n", peerDNS) +
+				etcdSpaceDelimiter + "--commonname=system:etcd-peer:${ETCD_DNS_NAME} \\\n" +
+				etcdSpaceDelimiter + "--ipaddrs=${ETCD_IPV4_ADDRESS} \\",
+			wantErr: false,
+		},
+		{
+			name: "bootstrap with Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "foo",
+					},
+					EtcdDiscoveryDomain: discoveryDomain,
+				}},
+			},
+			want: "cluster-etcd-operator \\\n" +
+				etcdSpaceDelimiter + "mount \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				etcdSpaceDelimiter + "--commonname=system:etcd-peer:${ETCD_DNS_NAME} \\",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := etcdPeerCertCommand(tt.args.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("etcdPeerCertCommand() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("etcdPeerCertCommand() got = (%v), want (%v)", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_etcdMetricCertCommand(t *testing.T) {
+	peerDNS, err := etcdServerCertDNSNames(RenderConfig{})
+	if err != nil {
+		t.Errorf("Error getting metric cert dns names %#v", err)
+	}
+	type args struct {
+		cfg RenderConfig
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			name: "bootstrap without Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "",
+					},
+				}},
+			},
+			want: "kube-client-agent \\\n" +
+				etcdSpaceDelimiter + "request \\\n" +
+				etcdSpaceDelimiter + "--kubeconfig=/etc/kubernetes/kubeconfig \\\n" +
+				etcdSpaceDelimiter + "--orgname=system:etcd-metrics \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				fmt.Sprintf(etcdSpaceDelimiter+"--dnsnames=%s \\\n", peerDNS) +
+				etcdSpaceDelimiter + "--commonname=system:etcd-metric:${ETCD_DNS_NAME} \\\n" +
+				etcdSpaceDelimiter + "--ipaddrs=${ETCD_IPV4_ADDRESS} \\",
+			wantErr: false,
+		},
+		{
+			name: "bootstrap with Cluster Etcd Operator",
+			args: args{cfg: RenderConfig{
+				ControllerConfigSpec: &mcfgv1.ControllerConfigSpec{
+					Images: map[string]string{
+						ClusterEtcdOperatorImageKey: "foo",
+					},
+				}},
+			},
+			want: "cluster-etcd-operator \\\n" +
+				etcdSpaceDelimiter + "mount \\\n" +
+				etcdSpaceDelimiter + "--assetsdir=/etc/ssl/etcd \\\n" +
+				etcdSpaceDelimiter + "--commonname=system:etcd-metric:${ETCD_DNS_NAME} \\",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := etcdMetricCertCommand(tt.args.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("etcdMetricCertCommand() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("etcdMetricCertCommand() got = (%v), want (%v)", got, tt.want)
 			}
 		})
 	}
