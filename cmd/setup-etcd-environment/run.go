@@ -105,7 +105,7 @@ func runRunCmd(cmd *cobra.Command, args []string) error {
 	}
 	glog.Infof("dns name is %s", dns)
 
-	exportEnv := make(map[string]string)
+	var exportEnv map[string]string
 
 	if _, err := os.Stat(fmt.Sprintf("%s/member", etcdDataDir)); os.IsNotExist(err) && !runOpts.bootstrapSRV && inCluster() {
 		exportEnv, err = setExportEnv(etcdName, dns)
